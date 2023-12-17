@@ -12,14 +12,17 @@ for i in range(4):
 print(zipfiles)
 
 for file in zipfiles:
-    '''
     hf_hub_download(
         repo_id="travisdriver/astrovision-data",
         filename=file,
         repo_type="dataset",
         local_dir="data",
         local_dir_use_symlinks=False
-    )'''
+    )
 
-    with zipfile.ZipFile("data/" + file, "r") as zip_ref:
-        zip_ref.extractall("data/")
+    if file == "00000000" or file == "00000001":
+        with zipfile.ZipFile("data/" + file, "r") as zip_ref:
+            zip_ref.extractall("data/")
+    else:
+        with zipfile.ZipFile("data/" + file, "r") as zip_ref:
+            zip_ref.extractall("data/" + file)

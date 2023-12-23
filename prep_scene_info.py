@@ -13,8 +13,8 @@ def prepare_scene_info(folder, resultName):
     ids = sorted(images.keys())
     image_paths = []
     depth_paths = []
-    intrinsics = []
-    poses = []
+    intrinsics = np.array([None for _ in range(len(ids))], dtype = object)
+    poses = np.array([None for _ in range(len(ids))], dtype = object)
 
     for id in ids:
         idx_to_id[idx] = id
@@ -29,13 +29,33 @@ def prepare_scene_info(folder, resultName):
         K[1, 1] = fy
         K[1, 2] = cy
         K[2, 2] = 1
-        intrinsics.append(K)
+        intrinsics[idx] = K
 
         pose = np.zeros([4, 4])
-        pose[:3, :3] = images[id].qvec2rotmat()
-        pose[:3, 3] = images[id].tvec
+        qvec = images[id].qvec
+        qvec = qvec / np.linalg.norm(qvec)
+        w, x, y, z = qvec
+        R = np.array([
+            [
+                1 - 2 * y * y - 2 * z * z,
+                2 * x * y - 2 * z * w,
+                2 * x * z + 2 * y * w
+            ],
+            [
+                2 * x * y + 2 * z * w,
+                1 - 2 * x * x - 2 * z * z,
+                2 * y * z - 2 * x * w
+            ],
+            [
+                2 * x * z - 2 * y * w,
+                2 * y * z + 2 * x * w,
+                1 - 2 * x * x - 2 * y * y
+            ]
+        ])
+        pose[: 3, : 3] = R
+        pose[: 3, 3] = images[id].tvec
         pose[3, 3] = 1
-        poses.append(pose)
+        poses[idx] = pose
 
         idx += 1
 
@@ -46,24 +66,29 @@ def prepare_scene_info(folder, resultName):
             id1 = idx_to_id[i]
             id2 = idx_to_id[j]
 
-            keypoints1 = set(images[id1].point3D_ids)
-            keypoints2 = set(images[id2].point3D_ids)
-            matches = keypoints1 & keypoints2
+            points1 = set(images[id1].point3D_ids)
+            points2 = set(images[id2].point3D_ids)
+            matches = points1 & points2
+
+            if len(matches) == 0:
+                continue
 
             pairs.append([i, j])
-            overlaps.append(len(matches) / len(keypoints1))
+            overlaps.append(len(matches) / len(points1))
 
             pairs.append([j, i])
-            overlaps.append(len(matches) / len(keypoints2))
+            overlaps.append(len(matches) / len(points2))
 
-    np.savez(
+    resultDict = {
+        "image_paths": np.array(image_paths, dtype = object),
+        "depth_paths": np.array(depth_paths, dtype = object),
+        "intrinsics": intrinsics,
+        "poses": poses,
+        "pairs": np.array(pairs, dtype = object),
+        "overlaps": np.array(overlaps, dtype = object) 
+    }
+    print(resultDict)
+    np.save(
         resultName,
-        image_paths=image_paths,
-        depth_paths=depth_paths,
-        intrinsics=intrinsics,
-        poses=poses,
-        pairs=pairs,
-        overlaps=overlaps
+        resultDict
     )
-
-prepare_scene_info("dawn_ceres/2015293_c6_orbit125", "dawn_ceres.npz")
